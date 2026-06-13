@@ -10,6 +10,10 @@ services:
     image: tubesave-canary:latest
     container_name: tubesave-canary
     restart: unless-stopped
+    # 컨테이너가 NAS 본체 네트워크를 그대로 사용하도록 함.
+    # (도커 브리지 네트워크에서 github.com:443 연결이 막히는 문제 회피 —
+    #  "Failed to connect to github.com port 443". 본체는 정상 연결되므로 host 사용.)
+    network_mode: host
     environment:
       # ── 필수 ──
       GITHUB_TOKEN: "${GITHUB_TOKEN}"            # .env 에서 주입 (repo 쓰기 권한 PAT)
