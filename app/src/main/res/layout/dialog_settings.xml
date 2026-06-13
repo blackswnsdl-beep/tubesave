@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 어르신용 설정 화면: 섹션으로 묶고, 켜고 끄는 항목은 스위치로, 큰 글씨로 구성 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="8dp">
+
+        <!-- ───────── 재생 ───────── -->
+        <TextView style="@style/SettingSection" android:text="재생" />
+
+        <!-- 셔플 -->
+        <LinearLayout android:id="@+id/rowShuffle" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="셔플 재생" />
+                <TextView style="@style/SettingDesc" android:text="노래를 무작위 순서로 들어요" />
+            </LinearLayout>
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/swShuffle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:focusable="false" />
+        </LinearLayout>
+
+        <View style="@style/SettingDivider" />
+
+        <!-- 모두 닫기 후 음악 계속 -->
+        <LinearLayout android:id="@+id/rowKeepPlaying" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="모두 닫기 후 음악 계속" />
+                <TextView style="@style/SettingDesc" android:text="끄면: ‘모두 닫기’ 하면 음악도 함께 꺼져요" />
+            </LinearLayout>
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/swKeepPlaying"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:focusable="false" />
+        </LinearLayout>
+
+        <View style="@style/SettingDivider" />
+
+        <!-- 취침 타이머 -->
+        <LinearLayout android:id="@+id/rowSleep" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="취침 타이머" />
+                <TextView style="@style/SettingDesc" android:text="정한 시간 뒤 자동으로 멈춰요" />
+            </LinearLayout>
+            <TextView style="@style/SettingChevron" android:text="›" />
+        </LinearLayout>
+
+        <!-- ───────── 목록 ───────── -->
+        <TextView style="@style/SettingSection" android:text="목록" />
+
+        <!-- 정렬 순서 -->
+        <LinearLayout android:id="@+id/rowSort" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="정렬 순서" />
+                <TextView android:id="@+id/tvSortValue" style="@style/SettingValue" android:text="최신순" />
+            </LinearLayout>
+            <TextView style="@style/SettingChevron" android:text="›" />
+        </LinearLayout>
+
+        <View style="@style/SettingDivider" />
+
+        <!-- 저장 폴더 -->
+        <LinearLayout android:id="@+id/rowFolder" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="저장 폴더" />
+                <TextView android:id="@+id/tvFolderValue" style="@style/SettingValue" android:text="기본 폴더" />
+            </LinearLayout>
+            <TextView style="@style/SettingChevron" android:text="›" />
+        </LinearLayout>
+
+        <!-- ───────── 관리 ───────── -->
+        <TextView style="@style/SettingSection" android:text="관리" />
+
+        <!-- 백업 / 복원 -->
+        <LinearLayout android:id="@+id/rowBackup" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="백업 / 복원" />
+                <TextView style="@style/SettingDesc" android:text="받은 노래 목록을 저장하거나 되돌려요" />
+            </LinearLayout>
+            <TextView style="@style/SettingChevron" android:text="›" />
+        </LinearLayout>
+
+        <View style="@style/SettingDivider" />
+
+        <!-- 사용법 보기 -->
+        <LinearLayout android:id="@+id/rowGuide" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="사용법 보기" />
+                <TextView style="@style/SettingDesc" android:text="앱 사용 방법을 다시 봐요" />
+            </LinearLayout>
+            <TextView style="@style/SettingChevron" android:text="›" />
+        </LinearLayout>
+
+        <View style="@style/SettingDivider" />
+
+        <!-- 실패 알림 설정 (관리자) -->
+        <LinearLayout android:id="@+id/rowAdmin" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="실패 알림 설정" />
+                <TextView style="@style/SettingDesc" android:text="관리자용 — 다운로드 실패 알림" />
+            </LinearLayout>
+            <TextView style="@style/SettingChevron" android:text="›" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

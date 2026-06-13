@@ -61,6 +61,26 @@ class PlaybackService : MediaSessionService() {
         return super.onStartCommand(intent, flags, startId)
     }
 
+    /**
+     * 사용자가 최근앱 목록에서 앱을 밀어내면(모두 닫기) 호출된다.
+     *
+     * 기본 동작: 음악을 멈추고 서비스도 종료한다 → "모두 닫기 = 다 꺼짐"(어르신이
+     * 이해하기 쉬움). "노래가 안 꺼진다"는 혼란을 막는다.
+     *
+     * 설정에서 '모두 닫기 후 재생'을 켠 경우에만, 재생 중이면 그대로 두어
+     * 백그라운드에서 계속 듣게 한다(원하는 사람용).
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val player = mediaSession?.player
+        val keepPlaying = Prefs.keepPlayingInBackground(this) &&
+            player != null && player.playWhenReady && player.mediaItemCount > 0
+        if (!keepPlaying) {
+            player?.pause()   // 음악 정지
+            stopSelf()        // 서비스 종료 → 앱 완전 종료
+        }
+        super.onTaskRemoved(rootIntent)
+    }
+
     private fun scheduleSleep(minutes: Int) {
         sleepRunnable?.let { handler.removeCallbacks(it) }
         sleepRunnable = null

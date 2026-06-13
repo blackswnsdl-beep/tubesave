@@ -90,6 +90,12 @@ object Prefs {
     fun ytdlpUpdated(c: Context) = p(c).getBoolean("ytdlp_updated", false)
     fun setYtdlpUpdated(c: Context, v: Boolean) = p(c).edit().putBoolean("ytdlp_updated", v).apply()
 
+    // '모두 닫기'(최근앱에서 밀어내기) 후 백그라운드 재생 유지 여부.
+    // 기본 false → 모두 닫기 하면 음악도 멈추고 앱이 완전히 종료된다(어르신용 직관적 동작).
+    fun keepPlayingInBackground(c: Context) = p(c).getBoolean("keep_playing_bg", false)
+    fun setKeepPlayingInBackground(c: Context, v: Boolean) =
+        p(c).edit().putBoolean("keep_playing_bg", v).apply()
+
     // 원격설정으로 갱신되는 yt-dlp 추출 옵션(봇 차단 회피 클라이언트). 기본은 android_vr.
     fun extractorArgs(c: Context): String =
         p(c).getString("extractor_args", "youtube:player_client=android_vr") ?: "youtube:player_client=android_vr"

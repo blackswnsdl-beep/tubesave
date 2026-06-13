@@ -1054,36 +1054,58 @@ class MainActivity : AppCompatActivity() {
 
     // ── 설정 ──────────────────────────────────────────────
     private fun showSettingsDialog() {
-        val items = arrayOf(
-            "저장 폴더",
-            if (Prefs.sortByName(this)) "정렬: 이름순 → 최신순으로" else "정렬: 최신순 → 이름순으로",
-            "취침 타이머",
-            if (Prefs.shuffle(this)) "셔플: 켜짐 → 끄기" else "셔플: 꺼짐 → 켜기",
-            "백업 / 복원",
-            "사용법 보기",
-            "실패 알림 설정 (관리자)"
-        )
-        AlertDialog.Builder(this)
+        val view = layoutInflater.inflate(R.layout.dialog_settings, null)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("설정")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> showFolderDialog()
-                    1 -> {
-                        Prefs.setSortByName(this, !Prefs.sortByName(this))
-                        toast(if (Prefs.sortByName(this)) "이름순으로 정렬해요." else "최신순으로 정렬해요.")
-                        renderList()
-                    }
-                    2 -> showSleepDialog()
-                    3 -> {
-                        val on = !Prefs.shuffle(this); Prefs.setShuffle(this, on)
-                        controller?.shuffleModeEnabled = on
-                        toast(if (on) "셔플을 켰어요." else "셔플을 껐어요.")
-                    }
-                    4 -> showBackupDialog()
-                    5 -> showGuide()
-                    6 -> showAdminDialog()
-                }
-            }.show()
+            .setView(view)
+            .setPositiveButton("닫기", null)
+            .create()
+
+        // 스위치: 셔플 재생
+        view.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.swShuffle).apply {
+            isChecked = Prefs.shuffle(this@MainActivity)
+            setOnCheckedChangeListener { _, on ->
+                Prefs.setShuffle(this@MainActivity, on)
+                controller?.shuffleModeEnabled = on
+            }
+        }
+        // 스위치: 모두 닫기 후 음악 계속
+        view.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.swKeepPlaying).apply {
+            isChecked = Prefs.keepPlayingInBackground(this@MainActivity)
+            setOnCheckedChangeListener { _, on ->
+                Prefs.setKeepPlayingInBackground(this@MainActivity, on)
+            }
+        }
+
+        // 현재 선택값 표시
+        view.findViewById<TextView>(R.id.tvSortValue).text =
+            if (Prefs.sortByName(this)) "이름순" else "최신순"
+        view.findViewById<TextView>(R.id.tvFolderValue).text =
+            SongRepository.folderLabel(this)
+
+        // 스위치 행은 어디를 눌러도 토글되게 (탭 영역 크게 — 어르신용)
+        view.findViewById<View>(R.id.rowShuffle).setOnClickListener {
+            view.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.swShuffle).toggle()
+        }
+        view.findViewById<View>(R.id.rowKeepPlaying).setOnClickListener {
+            view.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.swKeepPlaying).toggle()
+        }
+
+        // 눌러서 이동/실행하는 항목
+        view.findViewById<View>(R.id.rowSleep).setOnClickListener { dialog.dismiss(); showSleepDialog() }
+        view.findViewById<View>(R.id.rowSort).setOnClickListener {
+            Prefs.setSortByName(this, !Prefs.sortByName(this))
+            view.findViewById<TextView>(R.id.tvSortValue).text =
+                if (Prefs.sortByName(this)) "이름순" else "최신순"
+            renderList()
+            toast(if (Prefs.sortByName(this)) "이름순으로 정렬해요." else "최신순으로 정렬해요.")
+        }
+        view.findViewById<View>(R.id.rowFolder).setOnClickListener { dialog.dismiss(); showFolderDialog() }
+        view.findViewById<View>(R.id.rowBackup).setOnClickListener { dialog.dismiss(); showBackupDialog() }
+        view.findViewById<View>(R.id.rowGuide).setOnClickListener { dialog.dismiss(); showGuide() }
+        view.findViewById<View>(R.id.rowAdmin).setOnClickListener { dialog.dismiss(); showAdminDialog() }
+
+        dialog.show()
     }
 
     private fun showFolderDialog() {
