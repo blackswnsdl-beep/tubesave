@@ -28,16 +28,21 @@ fi
 
 AUTH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
 
+# 인증/네트워크 문제 시 git 이 입력을 기다리며 멈추지 않고 즉시 에러로 종료하게 함
+export GIT_TERMINAL_PROMPT=0
+
 prepare_repo() {
   if [ -d "${REPO_DIR}/.git" ]; then
     log "기존 저장소 갱신(pull)"
     git -C "${REPO_DIR}" remote set-url origin "${AUTH_URL}"
-    git -C "${REPO_DIR}" fetch --quiet origin
+    git -C "${REPO_DIR}" fetch --quiet origin || { log "[ERROR] git fetch 실패"; return 1; }
     git -C "${REPO_DIR}" reset --hard origin/HEAD --quiet || true
   else
     log "저장소 clone: ${GITHUB_REPO}"
-    rm -rf "${REPO_DIR}"
-    git clone --quiet "${AUTH_URL}" "${REPO_DIR}"
+    # ${REPO_DIR}(/repo)는 도커 볼륨 마운트 지점이라 통째로 삭제할 수 없다.
+    # (rm -rf /repo → "Device or resource busy") 그래서 '내용물'만 비운 뒤 clone 한다.
+    find "${REPO_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+    git clone --quiet "${AUTH_URL}" "${REPO_DIR}" || { log "[ERROR] git clone 실패"; return 1; }
   fi
 }
 
