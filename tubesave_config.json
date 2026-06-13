@@ -1,5 +1,5 @@
 {
-  "extractor_args": "youtube:player_client=zz_broken_test",
+  "extractor_args": "youtube:player_client=android_vr",
   "latest_version_code": 1,
   "apk_url": "",
   "update_message": "유튜브 호환성을 개선했어요."
