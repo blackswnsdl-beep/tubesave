@@ -47,7 +47,12 @@ prepare_repo() {
 }
 
 run_once() {
-  prepare_repo
+  prepare_repo || { log "저장소 준비 실패 — 이번 회차 건너뜀"; return 1; }
+  # yt-dlp 를 매 실행마다 최신으로 갱신한다.
+  # 클라이언트 교체로 안 풀리는 '큰 변경'은 보통 yt-dlp 업데이트로 해결되므로,
+  # 이 한 줄로 그 경우까지 자동 대응한다(인터넷 필요, 실패해도 기존 버전으로 계속 진행).
+  log "yt-dlp 최신화"
+  pip install --no-cache-dir --upgrade --quiet yt-dlp || log "[WARN] yt-dlp 업그레이드 실패(기존 버전으로 진행)"
   log "canary.py 실행"
   python /app/canary.py
   local rc=$?
