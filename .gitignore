@@ -22,3 +22,7 @@ Thumbs.db
 
 # 비밀값 (토큰 등) — .env.example 만 커밋, 실제 .env 는 절대 커밋 금지
 .env
+
+# Python 캐시 (카나리 스크립트)
+__pycache__/
+*.pyc
