@@ -1,0 +1,27 @@
+# TubeSave 카나리 - ASUSTOR Docker(Container) 용 compose 파일
+#
+# 사용법 요약 (자세한 건 automation/README.md 참고)
+#   1) 같은 폴더에 .env 파일을 만들고 GITHUB_TOKEN 을 넣는다
+#   2) docker compose up -d --build
+#
+services:
+  tubesave-canary:
+    build: ./automation
+    image: tubesave-canary:latest
+    container_name: tubesave-canary
+    restart: unless-stopped
+    environment:
+      # ── 필수 ──
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"            # .env 에서 주입 (repo 쓰기 권한 PAT)
+      GITHUB_REPO: "blackswnsdl-beep/tubesave"
+      # ── 선택 (기본값으로 충분) ──
+      INTERVAL_HOURS: "6"                         # 몇 시간마다 점검할지
+      TZ: "Asia/Seoul"
+      # TEST_VIDEO_URL: "https://www.youtube.com/watch?v=BaW_jenozKc"
+      # CANDIDATE_CLIENTS: "android_vr,android,ios,tv,mweb,web_safari,web"
+      # DRY_RUN: "0"                              # "1" 이면 push 안 함 (테스트용)
+    volumes:
+      - canary-repo:/repo                         # clone 한 저장소를 재시작에도 유지
+
+volumes:
+  canary-repo:

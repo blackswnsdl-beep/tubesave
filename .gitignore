@@ -1,10 +1,24 @@
-# secrets
-.env
+# Android / Gradle
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+build/
+/captures
+.externalNativeBuild
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
 
-# python
-__pycache__/
-*.pyc
+# 빌드 산출물/캐시
+/app/build/
+/build/
 
 # OS
-.DS_Store
 Thumbs.db
+
+# 비밀값 (토큰 등) — .env.example 만 커밋, 실제 .env 는 절대 커밋 금지
+.env
