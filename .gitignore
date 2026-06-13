@@ -26,3 +26,6 @@ Thumbs.db
 # Python 캐시 (카나리 스크립트)
 __pycache__/
 *.pyc
+
+# 카나리 로컬 실행 로그
+automation/logs/

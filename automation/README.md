@@ -12,6 +12,54 @@ GitHub에 자동으로 올려주는 시스템입니다.
 
 ---
 
+## ⚙️ 실행 방식 (둘 중 하나)
+
+유튜브는 **데이터센터 IP**(GitHub Actions 등 클라우드)를 봇으로 차단합니다
+(`Sign in to confirm you're not a bot`). 그래서 카나리는 **가정용 IP**에서 돌려야 합니다.
+
+| 방식 | 장점 | 단점 | 비밀값 |
+|---|---|---|---|
+| **A. PC (현재 운영)** | 설정 5분, 토큰 불필요(저장된 git 인증 사용) | PC가 켜져 있을 때만 점검 | 없음 |
+| **B. NAS(ASUSTOR)** | 24시간 항상 점검 | Docker 설치·토큰 발급 필요 | GitHub PAT |
+
+> **현재는 A(PC) 방식으로 운영합니다.** 아래 "PC 방식" 섹션 참고.
+> 항상 점검이 필요해지면 B(NAS) 방식(이 문서의 1~5단계)으로 이전하면 됩니다.
+
+---
+
+## PC 방식 (Windows 작업 스케줄러)
+
+이 PC(가정용 IP)에서 `run-canary-local.ps1` 을 6시간마다 실행합니다.
+토큰이 필요 없습니다 — 이 PC에 이미 저장된 GitHub 로그인으로 push 합니다.
+
+**구성 파일:** `automation/run-canary-local.ps1`
+- yt-dlp 최신 갱신 → `canary.py` 실행 → 로그를 `automation/logs/` 에 저장
+- web 계열 클라이언트는 제외(`CANDIDATE_CLIENTS=android_vr,android,ios,tv,mweb`)하여
+  PC의 Node.js 로 인한 '거짓 성공'을 막고 휴대폰과 동일 조건 유지
+
+**예약 작업 등록** (PowerShell에서 한 번):
+```powershell
+$A = New-ScheduledTaskAction -Execute "powershell.exe" `
+  -Argument '-NoProfile -ExecutionPolicy Bypass -File "D:\GitHub\App\01_youtube_Mp3\automation\run-canary-local.ps1"'
+$T = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+  -RepetitionInterval (New-TimeSpan -Hours 6)
+Register-ScheduledTask -TaskName "TubeSave Canary" -Action $A -Trigger $T `
+  -Description "유튜브 호환성 자동 점검 (6시간마다)"
+```
+
+**즉시 1회 테스트:**
+```powershell
+Start-ScheduledTask -TaskName "TubeSave Canary"
+# 또는 직접:
+powershell -ExecutionPolicy Bypass -File "D:\GitHub\App\01_youtube_Mp3\automation\run-canary-local.ps1"
+```
+
+로그는 `automation/logs/canary_*.log` 에서 확인합니다.
+- `현재 설정(android_vr)이 정상 작동합니다. 변경 없음.` → 정상
+- `전환: android_vr → ios` + `GitHub 에 push 완료` → 자동 복구됨
+
+---
+
 ## 동작 원리
 
 1. NAS의 컨테이너가 yt-dlp로 테스트 영상을 추출 시도 (휴대폰 앱과 같은 방식)
