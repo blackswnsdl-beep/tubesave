@@ -1,10 +1,12 @@
 name: yt-dlp client canary
 
-# 6시간마다(및 수동 실행) 안드로이드와 동일한 JS-free 도커로 유튜브 테스트 →
+# 수동 실행 전용. 안드로이드와 동일한 JS-free 도커로 유튜브 테스트 →
 # player_client이 막혔으면 동작하는 값으로 tubesave_config.json 자동 갱신 후 커밋.
+#
+# 참고: GitHub Actions 러너는 데이터센터 IP라 유튜브가 봇으로 차단함
+# ("Sign in to confirm you're not a bot"). 정기 점검은 가정용 IP인 NAS에서 실행.
+# 그래서 schedule(cron) 트리거는 제거하고 수동 실행(workflow_dispatch)만 남김.
 on:
-  schedule:
-    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:
