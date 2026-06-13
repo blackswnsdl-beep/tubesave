@@ -1,0 +1,666 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/surface">
+
+    <!-- 헤더 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="12dp"
+        android:background="@color/brand">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02" />
+
+        <ImageButton
+            android:id="@+id/btnFolder"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@android:drawable/ic_menu_manage"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="설정"
+            android:tint="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- ───── 컴팩트 재생 바 (Now Playing) — 위쪽, 작게 ───── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/brand_pale"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageButton
+                android:id="@+id/btnPrev"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:src="@drawable/ic_prev"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:scaleType="fitCenter"
+                android:padding="9dp"
+                android:contentDescription="이전 곡" />
+
+            <ImageButton
+                android:id="@+id/btnPlayPause"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_marginHorizontal="6dp"
+                android:src="@drawable/ic_play_white"
+                android:background="@drawable/bg_play_circle"
+                android:scaleType="fitCenter"
+                android:padding="13dp"
+                android:contentDescription="재생/일시정지" />
+
+            <ImageButton
+                android:id="@+id/btnNext"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:src="@drawable/ic_next"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:scaleType="fitCenter"
+                android:padding="9dp"
+                android:contentDescription="다음 곡" />
+
+            <TextView
+                android:id="@+id/nowPlaying"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:text="@string/no_song"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/on_surface"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <Button
+                android:id="@+id/btnRepeat"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="0dp"
+                android:text="↻ 전체"
+                android:textSize="12sp"
+                android:textAllCaps="false"
+                android:paddingHorizontal="12dp"
+                android:background="@drawable/bg_pill"
+                android:textColor="#5D4037" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="2dp">
+
+            <TextView
+                android:id="@+id/timeCurrent"
+                android:layout_width="44dp"
+                android:layout_height="wrap_content"
+                android:text="0:00"
+                android:textSize="12sp"
+                android:textColor="@color/muted"
+                android:gravity="start" />
+
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="1000"
+                android:progressTint="@color/brand"
+                android:thumbTint="@color/brand" />
+
+            <TextView
+                android:id="@+id/timeTotal"
+                android:layout_width="44dp"
+                android:layout_height="wrap_content"
+                android:text="0:00"
+                android:textSize="12sp"
+                android:textColor="@color/muted"
+                android:gravity="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 탭: 전체 곡 / 앨범 / 휴지통 -->
+    <LinearLayout
+        android:id="@+id/tabRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/tabLibrary"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:text="전체 곡"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/bg_tab_on"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/tabPlaylist"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:text="앨범"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/bg_tab_off"
+            android:textColor="@color/tab_off_text" />
+
+        <Button
+            android:id="@+id/tabTrash"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:text="휴지통"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/bg_tab_off"
+            android:textColor="@color/tab_off_text" />
+    </LinearLayout>
+
+    <!-- 동작 줄: 필터(전체/즐겨찾기/앨범에 없는 곡) + 검색(돋보기) -->
+    <LinearLayout
+        android:id="@+id/actionRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="6dp"
+        android:gravity="center_vertical">
+
+        <HorizontalScrollView
+            android:id="@+id/filterRow"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:scrollbars="none"
+            android:overScrollMode="never">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/filterAll"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:minWidth="0dp"
+                    android:text="전체"
+                    android:textSize="14sp"
+                    android:textAllCaps="false"
+                    android:layout_marginEnd="6dp"
+                    android:paddingHorizontal="14dp"
+                    android:background="@drawable/bg_btn_primary"
+                    android:textColor="#FFFFFF" />
+
+                <Button
+                    android:id="@+id/filterFav"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:minWidth="0dp"
+                    android:text="⭐ 즐겨찾기"
+                    android:textSize="14sp"
+                    android:textAllCaps="false"
+                    android:layout_marginEnd="6dp"
+                    android:paddingHorizontal="14dp"
+                    android:background="@drawable/bg_pill"
+                    android:textColor="#5D4037" />
+
+                <Button
+                    android:id="@+id/filterUnfiled"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:minWidth="0dp"
+                    android:text="앨범에 없는 곡"
+                    android:textSize="14sp"
+                    android:textAllCaps="false"
+                    android:paddingHorizontal="14dp"
+                    android:background="@drawable/bg_pill"
+                    android:textColor="#5D4037" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <Button
+            android:id="@+id/btnEmptyTrash"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="휴지통 비우기"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:paddingHorizontal="16dp"
+            android:background="@drawable/bg_btn_danger"
+            android:textColor="#FFFFFF"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/btnSearch"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="6dp"
+            android:src="@android:drawable/ic_menu_search"
+            android:background="@drawable/bg_btn_secondary"
+            android:scaleType="fitCenter"
+            android:padding="10dp"
+            android:contentDescription="곡 검색"
+            android:tint="@color/on_surface" />
+    </LinearLayout>
+
+    <!-- 앨범 바 (앨범 탭에서만 표시) -->
+    <LinearLayout
+        android:id="@+id/albumBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btnBackToAlbums"
+            android:layout_width="wrap_content"
+            android:layout_height="46dp"
+            android:text="‹ 뒤로"
+            android:textSize="16sp"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            android:paddingHorizontal="14dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_btn_secondary"
+            android:textColor="@color/on_surface"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/albumDetailTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/on_surface"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnPlayAlbum"
+            android:layout_width="wrap_content"
+            android:layout_height="46dp"
+            android:text="전체재생"
+            android:textSize="15sp"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            android:paddingHorizontal="16dp"
+            android:background="@drawable/bg_btn_primary"
+            android:textColor="#FFFFFF"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnNewAlbum"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="+ 새 앨범 만들기"
+            android:textSize="16sp"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            android:background="@drawable/bg_btn_secondary"
+            android:textColor="@color/brand" />
+    </LinearLayout>
+
+    <!-- 검색 줄 (기본 숨김) -->
+    <LinearLayout
+        android:id="@+id/searchRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="4dp"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="제목으로 곡 찾기"
+            android:textSize="18sp"
+            android:inputType="text"
+            android:maxLines="1"
+            android:imeOptions="actionSearch" />
+
+        <ImageButton
+            android:id="@+id/btnSearchClear"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="fitCenter"
+            android:padding="10dp"
+            android:contentDescription="검색어 지우기"
+            android:tint="@color/muted" />
+    </LinearLayout>
+
+    <!-- ───── 곡 목록 (가장 큰 영역) ───── -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/songList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingTop="4dp"
+            android:clipToPadding="false" />
+
+        <TextView
+            android:id="@+id/emptyView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="아직 저장된 노래가 없어요."
+            android:textSize="20sp"
+            android:textColor="@color/muted"
+            android:gravity="center"
+            android:lineSpacingExtra="6dp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- 다운로드 진행현황 (받는 중에만 표시) -->
+    <LinearLayout
+        android:id="@+id/progressBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="6dp"
+        android:background="@color/brand_pale">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/progressText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="@color/brand"
+                android:paddingBottom="4dp"
+                android:text="노래 받는 중..." />
+
+            <Button
+                android:id="@+id/btnCancelDownload"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:layout_marginStart="8dp"
+                android:text="취소"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:paddingHorizontal="16dp"
+                android:background="@drawable/bg_btn_danger"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="0" />
+    </LinearLayout>
+
+    <!-- 선택 모드 액션바 (선택 중에만, 아래쪽 = 손 닿기 쉬움) -->
+    <LinearLayout
+        android:id="@+id/selectionBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/brand_pale2"
+        android:padding="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/selCount"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="0곡 선택"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#5D4037"
+            android:gravity="center"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="8dp">
+
+            <Button
+                android:id="@+id/btnSelectAll"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="전체선택"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_secondary"
+                android:textColor="@color/on_surface" />
+
+            <Button
+                android:id="@+id/btnPlaySel"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="재생"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_primary"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnAddToPlaylist"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="목록추가"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_secondary"
+                android:textColor="@color/on_surface" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnCancelSel"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="2"
+                android:layout_marginEnd="16dp"
+                android:text="취소"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_secondary"
+                android:textColor="@color/on_surface" />
+
+            <Button
+                android:id="@+id/btnRenameSel"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="16dp"
+                android:text="이름변경"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_secondary"
+                android:textColor="@color/on_surface"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnDeleteSel"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="삭제"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_danger"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ───── 하단: 노래 추가 (손이 닿는 아래쪽) ───── -->
+    <LinearLayout
+        android:id="@+id/addZone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#FAFAFA"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="10dp"
+        android:elevation="8dp">
+
+        <!-- 우측 아래 파일선택 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="4dp">
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnSelectMode"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="☑ 파일선택"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:paddingHorizontal="16dp"
+                android:background="@drawable/bg_btn_secondary"
+                android:textColor="@color/on_surface" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnOpenYoutube"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="▶ 유튜브 찾기"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_primary"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnPasteDownload"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="📋 붙여넣기"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:background="@drawable/bg_btn_secondary"
+                android:textColor="@color/on_surface" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/linkRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/linkInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:hint="유튜브 링크 붙여넣기"
+                android:textSize="17sp"
+                android:inputType="textUri"
+                android:maxLines="1" />
+
+            <Button
+                android:id="@+id/btnDownload"
+                android:layout_width="wrap_content"
+                android:layout_height="52dp"
+                android:text="받기"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:paddingHorizontal="22dp"
+                android:background="@drawable/bg_btn_primary"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

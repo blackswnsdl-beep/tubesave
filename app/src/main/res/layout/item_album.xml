@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="16dp"
+    android:background="?attr/selectableItemBackground">
+
+    <ImageView
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="8dp"
+        android:src="@android:drawable/ic_menu_slideshow"
+        android:tint="@color/brand"
+        android:contentDescription="앨범" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/albumName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/on_surface"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/albumCount"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/muted" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/btnAlbumUp"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:src="@drawable/ic_up"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="fitCenter"
+        android:padding="10dp"
+        android:contentDescription="위로 이동" />
+
+    <ImageButton
+        android:id="@+id/btnAlbumDown"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:src="@drawable/ic_down"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="fitCenter"
+        android:padding="10dp"
+        android:contentDescription="아래로 이동" />
+
+    <ImageButton
+        android:id="@+id/btnAlbumMore"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:src="@android:drawable/ic_menu_more"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="fitCenter"
+        android:padding="10dp"
+        android:contentDescription="이름 변경·삭제"
+        android:tint="@color/muted" />
+
+    <ImageView
+        android:id="@+id/albumDrag"
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:padding="10dp"
+        android:contentDescription="끌어서 순서 이동" />
+
+    <!-- 스와이프하면 나타나는 삭제 버튼 -->
+    <Button
+        android:id="@+id/btnAlbumDelete"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:layout_marginStart="6dp"
+        android:text="삭제"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:paddingHorizontal="20dp"
+        android:background="@drawable/bg_btn_danger"
+        android:textColor="#FFFFFF"
+        android:visibility="gone" />
+</LinearLayout>

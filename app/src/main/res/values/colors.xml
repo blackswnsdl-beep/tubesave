@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#E65100</color>        <!-- 진한 앰버: 대비비 확보(흰글씨 AA 통과) -->
+    <color name="brand_light">#FF8F00</color>
+    <color name="brand_pale">#FFF3E0</color>     <!-- 재생바 배경 -->
+    <color name="brand_pale2">#FFE0B2</color>    <!-- 선택바 배경 -->
+    <color name="surface">#FFFFFF</color>
+    <color name="on_surface">#1F1F1F</color>
+    <color name="muted">#6E6E6E</color>
+    <color name="tab_off">#EceCeC</color>
+    <color name="tab_off_text">#7A7A7A</color>
+    <color name="danger">#C62828</color>
+</resources>
