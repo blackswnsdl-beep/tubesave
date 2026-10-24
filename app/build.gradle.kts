@@ -11,8 +11,8 @@ android {
         applicationId = "com.psave.tubesave"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 5
+        versionName = "1.4"
 
         ndk {
             // arm64-v8a/armeabi-v7a = 실제 폰, x86_64 = 에뮬레이터(Windows) 검증용
@@ -43,6 +43,8 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")

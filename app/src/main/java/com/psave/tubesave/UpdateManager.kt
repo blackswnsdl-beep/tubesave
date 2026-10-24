@@ -2,161 +2,225 @@ package com.psave.tubesave
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.withStarted
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * 인터넷의 작은 설정 파일(JSON)로 앱을 원격 유지보수한다.
- *  1) yt-dlp 옵션(extractor_args)을 갱신 → 유튜브가 클라이언트를 막아도 재빌드 없이 서버에서 교체.
- *  2) 새 APK가 올라오면 어르신에게 "업데이트" 한 번으로 설치하게 안내.
- *
- * 배포자는 아래 CONFIG_URL을 자신의 주소(GitHub raw 등)로 바꾸기만 하면 된다.
- * 그대로 두면 원격 기능은 꺼진 채(앱은 정상) 동작한다.
- *
- * 설정 파일 예시(tubesave_config.json):
- * {
- *   "extractor_args": "youtube:player_client=android_vr",
- *   "latest_version_code": 2,
- *   "apk_url": "https://github.com/USER/REPO/releases/download/v1.1/app-debug.apk",
- *   "update_message": "유튜브 호환성을 개선했어요."
- * }
- * ※ 올리는 APK는 반드시 '같은 키'로 서명돼야 덮어쓰기 설치됩니다(같은 PC에서 빌드한 디버그 APK면 OK).
- */
+/** Checks may run automatically. Download and Android installer always require user consent. */
 object UpdateManager {
+    const val EXTRA_CHECK_UPDATE = "com.psave.tubesave.CHECK_APP_UPDATE"
+    @Volatile private var installerOpen = false
+    fun canStartMusicDownload() = !installerOpen
+    private val checking = AtomicBoolean(false)
+    private val flow = UpdateFlowGate()
+    private data class Pending(val file: File, val release: UpdateRelease)
+    @Volatile private var pending: Pending? = null
 
-    // ▼▼▼ 여기를 본인 주소로 바꾸세요 ▼▼▼
-    private const val CONFIG_URL = "https://raw.githubusercontent.com/blackswnsdl-beep/tubesave/main/tubesave_config.json"
+    private fun prefs(context: Context) = context.getSharedPreferences("tubesave_updates", Context.MODE_PRIVATE)
+    private fun usable(activity: AppCompatActivity) = !activity.isFinishing && !activity.isDestroyed &&
+        activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
-    fun checkAsync(activity: AppCompatActivity) {
-        if (CONFIG_URL.contains("USER/REPO")) return   // 미설정이면 조용히 건너뜀
-        activity.lifecycleScope.launch(Dispatchers.IO) {
-            val json = fetchText(cacheBusted(CONFIG_URL)) ?: return@launch
-            val o = try { JSONObject(json) } catch (e: Exception) { return@launch }
-
-            // 1) yt-dlp 옵션 원격 갱신 (다음 받기부터 적용)
-            o.optString("extractor_args").takeIf { it.isNotBlank() }
-                ?.let { Prefs.setExtractorArgs(activity, it) }
-
-            // 2) 새 버전 확인
-            val latest = o.optInt("latest_version_code", 0)
-            val apk = o.optString("apk_url")
-            val msg = o.optString("update_message", "유튜브 호환성을 개선했어요.")
-            if (latest > currentVersion(activity) && apk.isNotBlank()) {
-                withContext(Dispatchers.Main) { promptUpdate(activity, apk, msg) }
+    fun checkThrottled(activity: AppCompatActivity) {
+        installerOpen = false // returning from the Android installer (including cancellation)
+        if (!usable(activity)) {
+            if (!activity.isFinishing && !activity.isDestroyed) activity.lifecycleScope.launch {
+                activity.lifecycle.withStarted { checkThrottled(activity) }
             }
+            return
+        }
+        pending?.let { offerInstall(activity, it); return }
+        if (activity.intent.getBooleanExtra(EXTRA_CHECK_UPDATE, false)) {
+            activity.intent.removeExtra(EXTRA_CHECK_UPDATE)
+            checkAsync(activity, manual = true)
+            return
+        }
+        val now = System.currentTimeMillis()
+        val settings = prefs(activity)
+        val success = settings.getLong("last_success", 0)
+        val attempt = settings.getLong("last_attempt", 0)
+        if (now >= success && now - success < 6 * 60 * 60 * 1000L) return
+        if (now >= attempt && now - attempt < 15 * 60 * 1000L) return
+        checkAsync(activity)
+    }
+
+    fun checkAsync(activity: AppCompatActivity, manual: Boolean = false) {
+        pending?.let { offerInstall(activity, it); return }
+        if (!checking.compareAndSet(false, true)) {
+            if (manual) toast(activity, "새 버전을 확인하고 있어요.")
+            return
+        }
+        prefs(activity).edit().putLong("last_attempt", System.currentTimeMillis()).apply()
+        if (manual) toast(activity, "새 버전을 확인하고 있어요.")
+        activity.lifecycleScope.launch {
+            try {
+                val release = withContext(Dispatchers.IO) { available(activity.applicationContext) }
+                prefs(activity).edit().putLong("last_success", System.currentTimeMillis()).apply()
+                if (release != null && usable(activity)) promptUpdate(activity, release)
+                else if (manual && usable(activity)) message(activity, "새 버전이 아직 게시되지 않았어요.")
+            } catch (cancelled: CancellationException) { throw cancelled }
+              catch (error: Exception) {
+                if (manual && usable(activity)) message(activity, "업데이트를 확인하지 못했어요. 인터넷 연결과 배포 정보를 확인해 주세요.")
+            } finally { checking.set(false) }
         }
     }
 
-    /**
-     * 원격설정에서 extractor_args(yt-dlp player_client)만 받아 Prefs 에 반영한다. UI 없음.
-     * 화면(Activity)이 없어도 호출 가능하므로 다운로드 실패 복구·백그라운드에서 쓴다.
-     * 반드시 백그라운드(IO) 스레드에서 호출할 것. 설정을 읽어 반영했으면 true.
-     *
-     * 이게 있어야: 유튜브가 막혀 카나리가 GitHub 의 player_client 를 바꿔도,
-     * 앱을 완전히 껐다 켜지 않고 그 값을 받아 다음 시도부터 바로 정상화된다.
-     */
-    fun refreshConfig(context: Context): Boolean {
-        if (CONFIG_URL.contains("USER/REPO")) return false
-        val json = fetchText(cacheBusted(CONFIG_URL)) ?: return false
-        val o = try { JSONObject(json) } catch (e: Exception) { return false }
-        val args = o.optString("extractor_args").takeIf { it.isNotBlank() } ?: return false
-        Prefs.setExtractorArgs(context, args)
-        return true
+    /** IO only. Missing hashes on an advertised newer release fail closed. */
+    internal fun available(context: Context): UpdateRelease? {
+        val config = fetchConfig()
+        config.optString("extractor_args").takeIf { it.isNotBlank() }?.let { Prefs.setExtractorArgs(context, it) }
+        val current = UpdateVerifier.version(UpdateVerifier.installed(context))
+        val version = config.optLong("latest_version_code", 0)
+        if (version <= current) return null
+        val release = UpdateRelease(version, config.getString("apk_url"), config.getString("apk_sha256"),
+            config.getLong("apk_size_bytes"), config.getString("application_id"),
+            config.optString("update_message", "더 안정적으로 개선했어요.").take(500))
+        UpdatePolicy.validateRelease(release, current, context.packageName)
+        return release
     }
 
-    // GitHub raw 는 CDN 캐시(약 5분)가 있어, 카나리가 막 push 한 새 설정 대신 옛 값이
-    // 올 수 있다. 매번 다른 쿼리(t=현재시각)를 붙여 항상 최신을 받게 한다.
-    private fun cacheBusted(url: String): String =
-        url + (if (url.contains("?")) "&" else "?") + "t=" + System.currentTimeMillis()
+    fun refreshConfig(context: Context): Boolean = try {
+        val value = fetchConfig().optString("extractor_args").takeIf { it.isNotBlank() }
+        if (value == null) false else { Prefs.setExtractorArgs(context, value); true }
+    } catch (error: Exception) { false }
 
-    private fun currentVersion(activity: AppCompatActivity): Int = try {
-        val pi = activity.packageManager.getPackageInfo(activity.packageName, 0)
-        if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode.toInt()
-        else @Suppress("DEPRECATION") pi.versionCode
-    } catch (e: Exception) { Int.MAX_VALUE }   // 못 읽으면 업데이트 안내 안 함
-
-    private fun promptUpdate(activity: AppCompatActivity, apkUrl: String, msg: String) {
-        if (activity.isFinishing) return
-        AlertDialog.Builder(activity)
-            .setTitle("새 버전이 있어요")
-            .setMessage("$msg\n\n지금 업데이트할까요?")
-            .setPositiveButton("업데이트") { _, _ -> downloadAndInstall(activity, apkUrl) }
-            .setNegativeButton("나중에", null)
-            .setCancelable(false)
-            .show()
+    private fun fetchConfig(): JSONObject {
+        val url = UpdatePolicy.CONFIG_URL + "?t=" + System.currentTimeMillis()
+        return JSONObject(UpdateTransfer(allow = UpdatePolicy::trustedMetadata).metadata(url))
     }
 
-    private fun downloadAndInstall(activity: AppCompatActivity, apkUrl: String) {
+    private fun promptUpdate(activity: AppCompatActivity, release: UpdateRelease) {
+        if (!usable(activity) || !flow.acquire()) return
+        var downloading = false
+        val prompt = AlertDialog.Builder(activity).setTitle("새 버전이 있어요")
+            .setMessage(release.message + "\n\n업데이트를 내려받을까요? 설치할 때 한 번 더 확인해요.")
+            .setPositiveButton("내려받기") { _, _ -> downloading = true; download(activity, release) }
+            .setNegativeButton("나중에", null).create()
+        showOwned(activity, prompt) { if (!downloading) flow.release() }
+    }
+
+    private fun download(activity: AppCompatActivity, release: UpdateRelease) {
         val bar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100; isIndeterminate = false
-            setPadding(48, 40, 48, 40)
+            max = 100; setPadding(48, 40, 48, 40)
         }
-        val dlg = AlertDialog.Builder(activity)
-            .setTitle("업데이트 내려받는 중...")
-            .setView(bar).setCancelable(false).create()
-        dlg.show()
-        activity.lifecycleScope.launch(Dispatchers.IO) {
-            val apkFile = File(activity.cacheDir, "update.apk")
-            val ok = downloadTo(apkUrl, apkFile) { pct -> activity.runOnUiThread { bar.progress = pct } }
-            withContext(Dispatchers.Main) {
-                if (dlg.isShowing) dlg.dismiss()
-                if (ok) installApk(activity, apkFile)
-                else AlertDialog.Builder(activity)
-                    .setMessage("업데이트를 받지 못했어요. 인터넷을 확인하고 다시 시도해 주세요.")
-                    .setPositiveButton("확인", null).show()
-            }
-        }
-    }
-
-    private fun installApk(activity: AppCompatActivity, file: File) {
-        try {
-            val uri = FileProvider.getUriForFile(activity, activity.packageName + ".fileprovider", file)
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            activity.startActivity(intent)
-        } catch (e: Exception) {
-            AlertDialog.Builder(activity)
-                .setMessage("설치 화면을 열지 못했어요.\n설정에서 ‘출처를 알 수 없는 앱 설치’를 허용한 뒤 다시 시도해 주세요.")
-                .setPositiveButton("확인", null).show()
-        }
-    }
-
-    private fun fetchText(urlStr: String): String? = try {
-        (URL(urlStr).openConnection() as HttpURLConnection).run {
-            connectTimeout = 8000; readTimeout = 8000; requestMethod = "GET"
-            val t = inputStream.bufferedReader().use { it.readText() }
-            disconnect(); t
-        }
-    } catch (e: Exception) { null }
-
-    private fun downloadTo(urlStr: String, dest: File, onProgress: (Int) -> Unit): Boolean = try {
-        val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 10000; readTimeout = 20000; requestMethod = "GET"; instanceFollowRedirects = true; connect()
-        }
-        if (conn.responseCode !in 200..299) { conn.disconnect(); throw Exception("HTTP " + conn.responseCode) }
-        val total = conn.contentLength.toLong()
-        conn.inputStream.use { input ->
-            dest.outputStream().use { out ->
-                val buf = ByteArray(8192); var read: Int; var sum = 0L
-                while (input.read(buf).also { read = it } >= 0) {
-                    out.write(buf, 0, read); sum += read
-                    if (total > 0) onProgress((sum * 100 / total).toInt())
+        val dialog = AlertDialog.Builder(activity).setTitle("업데이트 내려받는 중...")
+            .setView(bar).setCancelable(false).setNegativeButton("취소", null).create()
+        dialog.show()
+        val directory = File(activity.cacheDir, "updates").apply { mkdirs() }
+        val target = File(directory, UUID.randomUUID().toString() + ".apk")
+        val job = activity.lifecycleScope.launch {
+            var verified = false
+            try {
+                val coroutine = currentCoroutineContext()
+                withContext(Dispatchers.IO) {
+                    UpdatePolicy.validateRelease(release, UpdateVerifier.version(UpdateVerifier.installed(activity)), activity.packageName)
+                    UpdateTransfer().download(release, target, { coroutine.ensureActive() }) { percent ->
+                        activity.runOnUiThread { if (dialog.isShowing) bar.progress = percent }
+                    }
+                    coroutine.ensureActive()
+                    UpdateVerifier.verify(activity, target, release)
                 }
+                ensureActive()
+                verified = true
+                pending = Pending(target, release)
+            } catch (cancelled: CancellationException) { throw cancelled }
+              catch (error: Exception) {
+                if (usable(activity)) message(activity, "업데이트를 받지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.\n" +
+                    (if (error is IllegalArgumentException) error.message.orEmpty() else "안전하게 확인된 파일만 설치할 수 있어요."))
+            } finally {
+                if (!verified) target.delete()
+                dialog.dismiss()
+                flow.release()
             }
+            pending?.takeIf { verified }?.let { if (usable(activity)) offerInstall(activity, it) }
         }
-        conn.disconnect(); true
-    } catch (e: Exception) { dest.delete(); false }
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+            job.cancel()
+            dialog.dismiss()
+            toast(activity, "업데이트 받기를 취소했어요.")
+        }
+    }
+
+    /** Re-check bytes, version and the installed signers even after visiting Android settings. */
+    private fun offerInstall(activity: AppCompatActivity, ready: Pending) {
+        if (!usable(activity) || !flow.acquire()) return
+        activity.lifecycleScope.launch {
+            var offered = false
+            try {
+                withContext(Dispatchers.IO) { UpdateVerifier.verify(activity, ready.file, ready.release) }
+                if (!usable(activity)) return@launch
+                if (!UpdatePolicy.mayInstall(DownloadService.hasPendingDownloads())) {
+                    message(activity, "노래 받기가 끝난 뒤 설정에서 앱 업데이트를 눌러 주세요. 받은 업데이트 파일은 보관했어요.")
+                    return@launch
+                }
+                val allowed = Build.VERSION.SDK_INT < 26 || activity.packageManager.canRequestPackageInstalls()
+                offered = true
+                val prompt = AlertDialog.Builder(activity).setTitle(if (allowed) "업데이트 설치 준비 완료" else "설치 허용이 필요해요")
+                    .setMessage(if (allowed) "기존 앱을 지우지 않고 업데이트해요. 설치 중 앱이 닫힐 수 있어요.\nAndroid 설치 화면에서 직접 확인해 주세요."
+                        else "노래저장에서 앱 업데이트를 설치하도록 허용해 주세요. 설정에서 돌아오면 설치를 이어갈 수 있어요.")
+                    .setPositiveButton(if (allowed) "설치 화면 열기" else "설정 열기") { _, _ ->
+                        if (!UpdatePolicy.mayInstall(DownloadService.hasPendingDownloads())) {
+                            toast(activity, "노래 받기가 끝난 뒤 설치해 주세요.")
+                        } else if (allowed) launchInstaller(activity, ready)
+                        else runCatching { activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:" + activity.packageName))) }
+                            .onFailure { message(activity, "설정 화면을 열지 못했어요. 휴대폰 설정의 앱 설치 허용을 확인해 주세요.") }
+                    }
+                    .setNegativeButton("나중에", null)
+                    .setNeutralButton("업데이트 취소") { _, _ -> pending = null; ready.file.delete() }.create()
+                showOwned(activity, prompt) { flow.release() }
+            } catch (cancelled: CancellationException) { throw cancelled }
+              catch (error: Exception) {
+                pending = null; ready.file.delete()
+                if (usable(activity)) message(activity, "업데이트 파일을 확인하지 못해 설치를 멈췄어요. 기존 앱을 지우지 말고 다시 받아 주세요.")
+            } finally { if (!offered) flow.release() }
+        }
+    }
+
+    private fun launchInstaller(activity: AppCompatActivity, ready: Pending) {
+        try {
+            val uri = FileProvider.getUriForFile(activity, activity.packageName + ".fileprovider", ready.file)
+            if (DownloadService.hasPendingDownloads()) { toast(activity, "노래 받기가 끝난 뒤 설치해 주세요."); return }
+            installerOpen = true
+            activity.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            })
+            // Keep only the private APK until the platform installer has read it.
+            pending = null
+        } catch (error: Exception) { installerOpen = false; message(activity, "설치 화면을 열지 못했어요. 잠시 후 다시 시도해 주세요.") }
+    }
+
+    private fun showOwned(activity: AppCompatActivity, dialog: AlertDialog, dismissed: () -> Unit) {
+        val observer = object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) { dialog.dismiss() }
+        }
+        dialog.setOnDismissListener {
+            activity.lifecycle.removeObserver(observer)
+            dismissed()
+        }
+        activity.lifecycle.addObserver(observer)
+        dialog.show()
+    }
+
+    private fun message(activity: AppCompatActivity, text: String) {
+        if (!activity.isFinishing && !activity.isDestroyed)
+            AlertDialog.Builder(activity).setMessage(text).setPositiveButton("확인", null).show()
+    }
+    private fun toast(context: Context, text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 }

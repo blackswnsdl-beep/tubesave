@@ -220,7 +220,6 @@ class MainActivity : AppCompatActivity() {
         switchTab(Tab.LIBRARY)
         requestNeededPermissions()
         lifecycleScope.launch(Dispatchers.IO) { SongRepository.purgeOldTrash(this@MainActivity, TRASH_RETENTION_DAYS) }
-        UpdateManager.checkAsync(this)   // 원격설정 갱신 + 새 버전 있으면 업데이트 안내
         maybePromptUpdateFromIntent(intent)
         if (!Prefs.guideSeen(this)) { Prefs.setGuideSeen(this, true); handler.post { showGuide() } }
     }
@@ -229,11 +228,16 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         maybePromptUpdateFromIntent(intent)
+        if (intent.getBooleanExtra(UpdateManager.EXTRA_CHECK_UPDATE, false)) {
+            intent.removeExtra(UpdateManager.EXTRA_CHECK_UPDATE)
+            UpdateManager.checkAsync(this, manual = true)
+        }
     }
 
     override fun onStart() {
         super.onStart()
         inForeground = true
+        UpdateManager.checkThrottled(this)
         // 앱이 앞으로 올 때마다 원격설정(player_client) 최신화 — 콜드 재시작이 아니어도
         // 카나리가 바꿔둔 값을 받아 반영한다(가벼운 GET, 실패해도 무시).
         lifecycleScope.launch(Dispatchers.IO) { runCatching { UpdateManager.refreshConfig(applicationContext) } }
@@ -1103,6 +1107,7 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.rowFolder).setOnClickListener { dialog.dismiss(); showFolderDialog() }
         view.findViewById<View>(R.id.rowBackup).setOnClickListener { dialog.dismiss(); showBackupDialog() }
         view.findViewById<View>(R.id.rowGuide).setOnClickListener { dialog.dismiss(); showGuide() }
+        view.findViewById<View>(R.id.rowAppUpdate).setOnClickListener { dialog.dismiss(); UpdateManager.checkAsync(this, manual = true) }
         view.findViewById<View>(R.id.rowAdmin).setOnClickListener { dialog.dismiss(); showAdminDialog() }
 
         dialog.show()
@@ -1250,7 +1255,11 @@ class MainActivity : AppCompatActivity() {
             val ok = withContext(Dispatchers.IO) {
                 try {
                     UpdateManager.refreshConfig(applicationContext)   // 새 player_client(원격설정)도 함께 반영
-                    YoutubeDL.getInstance().updateYoutubeDL(applicationContext, YoutubeDL.UpdateChannel.NIGHTLY)
+                    YoutubeDL.getInstance().init(applicationContext)
+                    com.yausername.ffmpeg.FFmpeg.getInstance().init(applicationContext)
+                    Prefs.markYtdlpAttempt(applicationContext, System.currentTimeMillis())
+                    checkNotNull(YoutubeDL.getInstance().updateYoutubeDL(applicationContext, YoutubeDL.UpdateChannel.NIGHTLY))
+                    Prefs.markYtdlpSuccess(applicationContext, System.currentTimeMillis())
                     true
                 } catch (e: Exception) { false }
             }

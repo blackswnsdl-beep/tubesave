@@ -103,6 +103,15 @@
 
         <View style="@style/SettingDivider" />
 
+        <LinearLayout android:id="@+id/rowAppUpdate" style="@style/SettingRowClickable">
+            <LinearLayout style="@style/SettingTexts">
+                <TextView style="@style/SettingTitle" android:text="앱 업데이트" />
+                <TextView style="@style/SettingDesc" android:text="새 버전을 자동 확인하고 설치를 안내해요" />
+            </LinearLayout>
+            <TextView style="@style/SettingChevron" android:text="›" />
+        </LinearLayout>
+        <View style="@style/SettingDivider" />
+
         <!-- 실패 알림 설정 (관리자) -->
         <LinearLayout android:id="@+id/rowAdmin" style="@style/SettingRowClickable">
             <LinearLayout style="@style/SettingTexts">

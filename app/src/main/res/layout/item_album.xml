@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
@@ -13,7 +14,7 @@
         android:layout_height="40dp"
         android:layout_marginEnd="8dp"
         android:src="@android:drawable/ic_menu_slideshow"
-        android:tint="@color/brand"
+        app:tint="@color/brand"
         android:contentDescription="앨범" />
 
     <LinearLayout
@@ -69,7 +70,7 @@
         android:scaleType="fitCenter"
         android:padding="10dp"
         android:contentDescription="이름 변경·삭제"
-        android:tint="@color/muted" />
+        app:tint="@color/muted" />
 
     <ImageView
         android:id="@+id/albumDrag"

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -32,7 +33,7 @@
             android:src="@android:drawable/ic_menu_manage"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="설정"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
     <!-- ───── 컴팩트 재생 바 (Now Playing) — 위쪽, 작게 ───── -->
@@ -279,7 +280,7 @@
             android:scaleType="fitCenter"
             android:padding="10dp"
             android:contentDescription="곡 검색"
-            android:tint="@color/on_surface" />
+            app:tint="@color/on_surface" />
     </LinearLayout>
 
     <!-- 앨범 바 (앨범 탭에서만 표시) -->
@@ -375,7 +376,7 @@
             android:scaleType="fitCenter"
             android:padding="10dp"
             android:contentDescription="검색어 지우기"
-            android:tint="@color/muted" />
+            app:tint="@color/muted" />
     </LinearLayout>
 
     <!-- ───── 곡 목록 (가장 큰 영역) ───── -->

@@ -36,6 +36,8 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 from datetime import datetime, timezone
 
 try:
@@ -53,15 +55,16 @@ CONFIG_PATH = os.environ.get(
     "CONFIG_PATH", os.path.join(REPO_DIR, "tubesave_config.json")
 )
 
-# 테스트 영상: 유튜브 최초 업로드 영상 "Me at the zoo" (삭제 가능성이 매우 낮아 안정적).
+# 테스트 영상: Blender의 Big Buck Bunny (CC BY 3.0, 공식 yt-dlp 테스트에도 사용).
 # 필요시 환경변수 TEST_VIDEO_URL 로 교체 가능.
 TEST_VIDEO_URL = os.environ.get(
-    "TEST_VIDEO_URL", "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    "TEST_VIDEO_URL", "https://www.youtube.com/watch?v=YE7VzlLtp-4"
 )
 
 # 시도해 볼 player_client 후보. 위에서부터 우선 시도.
 # 유튜브 차단 패턴이 바뀔 때 가장 흔히 통하는 순서로 배치.
 DEFAULT_CANDIDATES = [
+    "default",
     "android_vr",
     "android",
     "ios",
@@ -115,41 +118,41 @@ def build_extractor_args(client: str) -> str:
 
 # ── 추출 테스트 ──────────────────────────────────────────────────────────────
 def test_client(client: str) -> bool:
+    """실제 오디오 바이트를 받아 확인한다. 메타데이터만 성공한 403은 실패다.
+
+    yt-dlp의 test 모드는 전체 곡 대신 작은 테스트 분량만 내려받는다.
+    쿠키/로그인/사용자 설정은 읽지 않으며 임시 파일은 즉시 정리한다.
     """
-    주어진 player_client 로 테스트 영상에서 '재생 가능한 오디오 포맷'을 실제로
-    얻을 수 있는지 확인한다. 성공하면 True.
-    """
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "noplaylist": True,
-        "extractor_args": {"youtube": {"player_client": [client]}},
-        "socket_timeout": 30,
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(TEST_VIDEO_URL, download=False)
-    except Exception as e:  # noqa: BLE001 - 어떤 추출 실패든 '이 클라이언트 실패'로 본다
-        log(f"  - {client}: 추출 예외 ({type(e).__name__}: {str(e)[:120]})")
-        return False
-
-    if not info:
-        log(f"  - {client}: info 없음")
-        return False
-
-    formats = info.get("formats") or []
-    # 오디오가 있는 포맷이 하나라도 있으면 MP3 변환 가능 (acodec != none)
-    audio_formats = [
-        f for f in formats
-        if f.get("acodec") not in (None, "none") and f.get("url")
-    ]
-    if not audio_formats:
-        log(f"  - {client}: 오디오 포맷 없음 (formats={len(formats)})")
-        return False
-
-    log(f"  - {client}: OK (오디오 포맷 {len(audio_formats)}개)")
-    return True
+    with tempfile.TemporaryDirectory(prefix="tubesave-probe-") as temp:
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "format": "bestaudio/best",
+            "extractor_args": {"youtube": {"player_client": [client]}},
+            "socket_timeout": 15,
+            "retries": 0,
+            "fragment_retries": 0,
+            "extractor_retries": 0,
+            "test": True,
+            "nopart": True,
+            "outtmpl": str(Path(temp) / "probe.%(ext)s"),
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(TEST_VIDEO_URL, download=True)
+            if not info or info.get("acodec") in (None, "none"):
+                log(f"  - {client}: 선택된 오디오 포맷 없음")
+                return False
+            received = sum(p.stat().st_size for p in Path(temp).iterdir() if p.is_file())
+            if received <= 0:
+                log(f"  - {client}: 실제 오디오 데이터 없음")
+                return False
+            log(f"  - {client}: OK (실제 다운로드 {received} bytes)")
+            return True
+        except Exception as e:
+            log(f"  - {client}: 받기 실패 ({type(e).__name__}: {str(e)[:120]})")
+            return False
 
 
 # ── git ──────────────────────────────────────────────────────────────────────

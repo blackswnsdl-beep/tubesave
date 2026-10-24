@@ -29,3 +29,6 @@ __pycache__/
 
 # 카나리 로컬 실행 로그
 automation/logs/
+
+# Project-local canary dependencies
+automation/.python-deps/

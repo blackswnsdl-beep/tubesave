@@ -8,7 +8,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # yt-dlp 최신 설치 (유튜브 변경 대응의 핵심)
-RUN pip install --no-cache-dir --upgrade yt-dlp
+RUN pip install --no-cache-dir --upgrade "yt-dlp[default]"
 
 WORKDIR /app
 COPY canary.py /app/canary.py

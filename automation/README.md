@@ -1,3 +1,9 @@
+## v1.4 점검 변경
+
+`run-canary-local.ps1`은 현재 체크아웃 기준 경로를 사용하고 기본적으로 push하지 않습니다.
+의존성은 프로젝트 안에 설치하며 `canary.py`는 CC BY 공개 영상의 작은 오디오 데이터를 실제 받아 확인합니다.
+메타데이터만 성공하고 오디오가 403이면 실패로 판단합니다. Python 회귀 테스트는 `python -m unittest discover -s automation -p "test_*.py" -v`.
+
 # TubeSave 카나리 (자동 유지보수)
 
 어르신 휴대폰의 TubeSave 앱이 **유튜브 변경에도 알아서 계속 작동**하도록,

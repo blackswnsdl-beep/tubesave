@@ -85,10 +85,13 @@ object Prefs {
     fun guideSeen(c: Context) = p(c).getBoolean("guide_seen", false)
     fun setGuideSeen(c: Context, v: Boolean) = p(c).edit().putBoolean("guide_seen", v).apply()
 
-    // yt-dlp 코어 선제 업데이트 여부 (APK에 들어있는 yt-dlp 바이너리는 시간이 지나면 낡아
-    // 유튜브가 막으므로, 최초 1회는 다운로드 전에 최신으로 갱신한다)
-    fun ytdlpUpdated(c: Context) = p(c).getBoolean("ytdlp_updated", false)
-    fun setYtdlpUpdated(c: Context, v: Boolean) = p(c).edit().putBoolean("ytdlp_updated", v).apply()
+    // 평생 1회 플래그 대신 마지막 성공/시도 시각으로 매일 갱신하고 오프라인 재시도를 제한한다.
+    fun ytdlpLastSuccess(c: Context) = p(c).getLong("ytdlp_last_success", 0L)
+    fun ytdlpLastAttempt(c: Context) = p(c).getLong("ytdlp_last_attempt", 0L)
+    fun markYtdlpAttempt(c: Context, at: Long) =
+        p(c).edit().putLong("ytdlp_last_attempt", at).apply()
+    fun markYtdlpSuccess(c: Context, at: Long) =
+        p(c).edit().putLong("ytdlp_last_success", at).apply()
 
     // '모두 닫기'(최근앱에서 밀어내기) 후 백그라운드 재생 유지 여부.
     // 기본 false → 모두 닫기 하면 음악도 멈추고 앱이 완전히 종료된다(어르신용 직관적 동작).
@@ -96,9 +99,9 @@ object Prefs {
     fun setKeepPlayingInBackground(c: Context, v: Boolean) =
         p(c).edit().putBoolean("keep_playing_bg", v).apply()
 
-    // 원격설정으로 갱신되는 yt-dlp 추출 옵션(봇 차단 회피 클라이언트). 기본은 android_vr.
+    // yt-dlp가 현재 지원하는 기본 클라이언트를 선택한다. 오래된 원격설정도 마이그레이션.
     fun extractorArgs(c: Context): String =
-        p(c).getString("extractor_args", "youtube:player_client=android_vr") ?: "youtube:player_client=android_vr"
+        DownloadPolicy.extractorArgs(p(c).getString("extractor_args", null))
     fun setExtractorArgs(c: Context, v: String) = p(c).edit().putString("extractor_args", v).apply()
 
     // 이미 받은 영상(중복 다운로드 방지): videoId → 저장된 파일명

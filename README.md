@@ -1,3 +1,30 @@
+## v1.4 — 다운로드 복구와 안전한 앱 업데이트
+
+- 실제 오디오 요청에서 HTTP 403을 내는 `android_vr` 고정을 없애고 yt-dlp 기본 선택을 사용합니다.
+  코어는 24시간마다 확인하고 실패 시 1시간 재시도 간격을 적용합니다. 한글 파일명도 유지합니다.
+- 앱 복귀 시 6시간 간격, WorkManager가 연결된 네트워크에서 12시간 주기로 새 버전을 확인합니다.
+  Android 절전/강제 종료 정책에 따라 확인이 지연될 수 있습니다.
+- 알림/설정의 앱 업데이트 → 사용자 동의 후 받기(취소 가능) → 설치 허용 안내 → Android 설치 확인.
+  무인 설치를 보장하지 않으며 이번 기능은 새 APK를 최초 1회 설치한 뒤 사용할 수 있습니다.
+- 고정 HTTPS 메타데이터·같은 GitHub 저장소의 Release·허용된 GitHub 자산 호스트만 사용합니다.
+  SHA-256/크기/앱 ID/정확한 새 버전/현재 앱과 동일한 서명을 검증하고 다운그레이드·손상·다른 서명은 거부합니다.
+- 노래를 받는 중에는 설치를 미룹니다. 업데이트 취소·실패는 전용 임시 APK만 지우며 곡·앨범·설정은 지우지 않습니다.
+- 앱 ID `com.psave.tubesave`, versionCode 5, minSdk 24 / targetSdk 34, 기존 PC 서명을 유지합니다.
+  실제 사용자 폰의 서명은 확인하지 못했습니다. 업데이트 설치가 거부되면 기존 앱을 삭제하지 마세요.
+
+JDK 17/Android SDK 34로 `./gradlew testDebugUnitTest assembleDebug lintDebug`를 실행합니다.
+APK는 `app/build/outputs/apk/debug/app-debug.apk`. 단위 테스트 24개와 실제 CC BY 테스트 영상의 MP3 변환을 검증했습니다.
+실기기 알림/설치 UI/설치 후 데이터 보존은 연결 기기가 없어 미검증입니다.
+
+게시 순서는 동일 키로 서명한 새 APK를 Release에 올리고 실제 해시를 확인한 뒤 `tubesave_config.json`을 갱신합니다.
+메타데이터 필수 값: `latest_version_code`, `apk_url`, `apk_sha256`, `apk_size_bytes`, `application_id`, `update_message`.
+이전 updater의 version/url/message 필드는 그대로 유지합니다. 앞으로도 versionCode 증가와 동일 서명이 필요합니다.
+
+검증 근거: [Android 설치 허용](https://developer.android.com/reference/android/content/pm/PackageManager#canRequestPackageInstalls()),
+[서명 정보](https://developer.android.com/reference/android/content/pm/SigningInfo),
+[주기 작업](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work).
+테스트 자료: [Blender Big Buck Bunny, CC BY 3.0](https://peach.blender.org/about/), YouTube `YE7VzlLtp-4`.
+
 ## v4 — 상용앱 편의 기능 5종 (설계 검토 후 구현)
 설계 검토 문서: 기능추가_설계검토_v4.md (팀 에이전트 + 악마의 대변인 논의·합의)
 - **백업/복원**: 앨범·즐겨찾기·바꾼 이름을 파일로 저장/복원(노래 파일은 음악 폴더에 그대로). 복원 전 확인, 깨진 파일이면 기존 데이터 보존.

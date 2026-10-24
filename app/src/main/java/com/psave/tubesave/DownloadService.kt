@@ -73,6 +73,7 @@ class DownloadService : Service() {
         val url = intent?.getStringExtra(EXTRA_URL)
         if (url != null) {
             cancelled = false
+            busy = true
             total.incrementAndGet()
             val notif = progressNotification(queueText() + " 준비 중...", 0, true)
             if (Build.VERSION.SDK_INT >= 29)
@@ -99,6 +100,7 @@ class DownloadService : Service() {
                     android.util.Log.i(TAG, "사용자 취소로 중단됨")
                     return   // 정리는 cancelAll()이 담당 (finally에서 working=false 처리됨)
                 }
+                consecutiveFailures++
                 // 실제 원인은 logcat에서 확인: adb logcat -s TubeSave
                 android.util.Log.e(TAG, "다운로드 실패 (연속 ${consecutiveFailures}회): " + (e.message ?: "unknown"), e)
                 val needUpdate = consecutiveFailures >= 2
@@ -116,6 +118,7 @@ class DownloadService : Service() {
             }
             // 큐가 비고 진행 중인 작업도 없으면 포그라운드 종료 (잠깐 대기 후 재확인)
             if (queue.isEmpty && !working) {
+                busy = false
                 total.set(0); done.set(0)
                 broadcastProgress("", 0, false)   // 앱 내 진행 띠 숨김
                 releaseWake()                     // 배터리: 할 일 없으면 즉시 해제
@@ -133,30 +136,23 @@ class DownloadService : Service() {
                 initialized = true
             }
         }
-        // APK에 동봉된 yt-dlp 바이너리는 빌드 시점에 고정돼 있어, 시간이 지나면
-        // 유튜브가 막아 첫 곡부터 "받기 실패"가 난다. 최초 1회는 다운로드 전에
-        // 최신(NIGHTLY)으로 선제 갱신해 처음부터 정상 동작하도록 한다.
-        if (!Prefs.ytdlpUpdated(applicationContext)) {
-            nm.notify(NOTIF_ID, progressNotification("최신 버전으로 준비 중... (처음 1번)", 0, true))
-            runCatching {
-                YoutubeDL.getInstance()
-                    .updateYoutubeDL(applicationContext, YoutubeDL.UpdateChannel.NIGHTLY)
-            }.onSuccess {
-                Prefs.setYtdlpUpdated(applicationContext, true)
-                consecutiveFailures = 0
-            }.onFailure {
-                android.util.Log.e(TAG, "yt-dlp 선제 업데이트 실패", it)
-            }
-        } else if (consecutiveFailures >= 1) {
-            // 실패가 누적되면:
-            //  ① 원격설정(player_client)을 다시 받아온다 — 카나리가 GitHub 에 바꿔둔 새 값을
-            //     앱 재시작 없이 반영해, 다음 시도가 곧바로 새 클라이언트로 동작하게 한다.
-            //  ② yt-dlp 도 다시 최신(NIGHTLY)으로 갱신 시도.
+        val now = System.currentTimeMillis()
+        if (DownloadPolicy.shouldUpdate(
+                Prefs.ytdlpLastSuccess(applicationContext),
+                Prefs.ytdlpLastAttempt(applicationContext), consecutiveFailures, now
+            )) {
+            nm.notify(NOTIF_ID, progressNotification("최신 버전으로 준비 중...", 0, true))
+            Prefs.markYtdlpAttempt(applicationContext, now)
             runCatching { UpdateManager.refreshConfig(applicationContext) }
             runCatching {
-                YoutubeDL.getInstance()
-                    .updateYoutubeDL(applicationContext, YoutubeDL.UpdateChannel.NIGHTLY)
-            }.onSuccess { consecutiveFailures = 0 }
+                checkNotNull(YoutubeDL.getInstance()
+                    .updateYoutubeDL(applicationContext, YoutubeDL.UpdateChannel.NIGHTLY))
+            }.onSuccess {
+                Prefs.markYtdlpSuccess(applicationContext, System.currentTimeMillis())
+                // 코어 갱신은 다운로드 성공이 아니다. 실패 횟수는 파일 저장 후에만 초기화.
+            }.onFailure {
+                android.util.Log.w(TAG, "yt-dlp 업데이트 실패; 설치된 코어로 계속 시도", it)
+            }
         }
     }
 
@@ -202,12 +198,10 @@ class DownloadService : Service() {
                 addOption("--embed-thumbnail")
                 addOption("--add-metadata")
                 addOption("--no-playlist")
-                addOption("--restrict-filenames")
-                // [중요] 안드로이드에는 JavaScript 런타임이 없어 web/tv 클라이언트의
-                // nsig("n challenge")를 풀 수 없다 → android_vr 클라이언트로 받는다.
-                // 이 값은 원격설정(인터넷)에서 갱신 가능 → 차단되면 재빌드 없이 서버에서 교체.
+                // 0.18.1의 QuickJS와 yt-dlp 기본 클라이언트를 사용한다.
+                addOption("-f", "bestaudio/best")
                 addOption("--extractor-args", Prefs.extractorArgs(applicationContext))
-                addOption("-o", File(tempDir, "%(title)s.%(ext)s").absolutePath)
+                addOption("-o", File(tempDir, "%(title).150B.%(ext)s").absolutePath)
             }
 
             // 변환 예상시간(영상 길이 기반, 대략 15배속 가정). 길이를 모르면 0.
@@ -258,10 +252,9 @@ class DownloadService : Service() {
             videoId?.let { Prefs.putDownloaded(applicationContext, it, mp3.nameWithoutExtension) }  // 중복 방지 기록
             result("받기 완료 ♪", mp3.nameWithoutExtension)
             sendBroadcast(Intent(ACTION_DONE).setPackage(packageName).putExtra("uri", savedUri.toString()))
-        } catch (e: Exception) {
-            consecutiveFailures++
-            throw e
         } finally {
+            currentProcessId = null
+            currentConvJob = null
             convJob?.cancel()   // 변환 카운트다운 코루틴 정리(누수 방지)
             tempDir.deleteRecursively()
         }
@@ -365,6 +358,7 @@ class DownloadService : Service() {
     }
 
     override fun onDestroy() {
+        busy = false
         releaseWake()
         scope.cancel()
         super.onDestroy()
@@ -387,6 +381,7 @@ class DownloadService : Service() {
     /** 사용자 취소: 진행 중인 받기/변환을 멈추고 대기 곡도 모두 비운 뒤 서비스 종료. */
     private fun cancelAll() {
         cancelled = true
+        busy = false
         // 대기 중인 곡 모두 제거
         while (queue.tryReceive().isSuccess) { /* drain */ }
         // 진행 중인 yt-dlp/ffmpeg 프로세스 강제 종료 (execute가 예외로 풀림 → 취소로 처리)
@@ -441,14 +436,24 @@ class DownloadService : Service() {
         const val EXTRA_PERCENT = "percent"      // 0~100, 알 수 없으면 -1
         const val EXTRA_ACTIVE = "active"        // false면 진행 띠 숨김
         const val EXTRA_PROMPT_UPDATE = "prompt_update"
+        @Volatile private var busy = false
+        fun hasPendingDownloads() = busy
         private val LOCK = Any()
         @Volatile private var initialized = false
         @Volatile private var consecutiveFailures = 0
 
         fun start(context: Context, url: String) {
+            if (!UpdateManager.canStartMusicDownload()) {
+                android.widget.Toast.makeText(context, "앱 업데이트 설치를 마친 뒤 다시 받아 주세요.", android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
             val i = Intent(context, DownloadService::class.java).putExtra(EXTRA_URL, url)
-            if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(i)
-            else context.startService(i)
+            val alreadyBusy = busy
+            busy = true // cover the time before onStartCommand receives the queued intent
+            try {
+                if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(i)
+                else context.startService(i)
+            } catch (error: Exception) { busy = alreadyBusy; throw error }
         }
 
         /** 앱 화면의 '취소' 버튼에서 호출. 실행 중인 서비스에 취소 명령 전달. */
