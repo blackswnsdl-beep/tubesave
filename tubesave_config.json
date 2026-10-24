@@ -1,6 +1,9 @@
 {
-  "extractor_args": "youtube:player_client=android_vr",
-  "latest_version_code": 2,
-  "apk_url": "https://github.com/blackswnsdl-beep/tubesave/releases/download/v1.1/app-debug.apk",
-  "update_message": "더 안정적으로 개선했어요. 업데이트해 주세요."
+  "extractor_args": "youtube:player_client=default",
+  "latest_version_code": 5,
+  "apk_url": "https://github.com/blackswnsdl-beep/tubesave/releases/download/v1.4/app-debug.apk",
+  "update_message": "노래 받기와 안전한 자동 업데이트를 개선했어요.",
+  "apk_sha256": "d3f127cc867a12467f7ebdd06943834e602e0b804f02b88d7055b5506603f47e",
+  "apk_size_bytes": 158578190,
+  "application_id": "com.psave.tubesave"
 }
