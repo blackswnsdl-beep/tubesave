@@ -1,0 +1,232 @@
+name: Android 앱 빌드·배포
+
+# 목적: 폰에서 기존 앱을 지우지 않고 "업데이트"로만 설치되게 한다.
+# Android는 설치된 앱과 같은 키로 서명된 APK만 업데이트로 받아 주므로,
+# 모든 APK를 저장소 시크릿의 같은 키로 서명하고 인증서 지문을 검사한다.
+#
+#  - push            : 테스트 + 빌드. 서명 키가 있으면 업데이트 설치 가능한 APK를 아티팩트로 올림.
+#  - 수동 실행(publish): Release 게시 + tubesave_config.json 갱신 → 폰 앱이 새 버전을 안내.
+#
+# 필요한 시크릿: TUBESAVE_KEYSTORE_BASE64 (README '업데이트 서명 고정' 참고)
+on:
+  push:
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '새 버전으로 게시 (Release 생성 + 폰에 업데이트 안내)'
+        type: boolean
+        default: false
+      message:
+        description: '폰에 보여 줄 업데이트 안내 문구'
+        type: string
+        default: '더 안정적으로 개선했어요.'
+
+concurrency:
+  group: android-${{ github.ref }}
+
+env:
+  APK: app/build/outputs/apk/debug/app-debug.apk
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      signed: ${{ steps.key.outputs.present }}
+      version_code: ${{ steps.verify.outputs.version_code }}
+      version_name: ${{ steps.verify.outputs.version_name }}
+      sha256: ${{ steps.verify.outputs.sha256 }}
+    steps:
+      - name: 게시는 main 브랜치에서만
+        if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::게시는 main 브랜치에서만 할 수 있어요. (지금: $GITHUB_REF)"
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: 서명 가드 자가 점검 (다른 키는 거부, 고정된 키는 통과)
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/other.jks" -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 2 -dname "CN=not the update key"
+          other=$(keytool -exportcert -keystore "$RUNNER_TEMP/other.jks" -storepass android \
+            -alias androiddebugkey | sha256sum | cut -d' ' -f1)
+          export TUBESAVE_KEYSTORE_FILE="$RUNNER_TEMP/other.jks"
+          if ./gradlew -q :app:verifyUpdateSignerDebug; then
+            echo "::error::서명 가드가 다른 키를 통과시켰어요."
+            exit 1
+          fi
+          echo "↑ 위 실패는 정상이에요 (다른 키를 거부함). 이제 고정된 키로 통과하는지 확인해요."
+          ./gradlew -q :app:verifyUpdateSignerDebug "-Ptubesave.signerSha256=$other"
+
+      - name: 서명 키 준비
+        id: key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TUBESAVE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::TUBESAVE_KEYSTORE_BASE64 시크릿이 없어 테스트 전용으로만 빌드해요. 이 APK는 폰에 업데이트로 설치할 수 없어 올리지 않아요."
+            if [ "${{ github.event_name == 'workflow_dispatch' && inputs.publish }}" = "true" ]; then
+              echo "::error::서명 키 없이는 게시할 수 없어요. README '업데이트 서명 고정'을 참고해 시크릿을 등록해 주세요."
+              exit 1
+            fi
+          else
+            printf '%s' "$KEYSTORE_BASE64" | base64 -di > "$RUNNER_TEMP/update.keystore"
+            echo "TUBESAVE_KEYSTORE_FILE=$RUNNER_TEMP/update.keystore" >> "$GITHUB_ENV"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 테스트 + 빌드
+        env:
+          TUBESAVE_KEYSTORE_PASSWORD: ${{ secrets.TUBESAVE_KEYSTORE_PASSWORD }}
+          TUBESAVE_KEY_ALIAS: ${{ secrets.TUBESAVE_KEY_ALIAS }}
+          TUBESAVE_KEY_PASSWORD: ${{ secrets.TUBESAVE_KEY_PASSWORD }}
+        run: |
+          ./gradlew testDebugUnitTest assembleDebug \
+            ${{ steps.key.outputs.present != 'true' && '-Ptubesave.allowUnpinnedSigner=true' || '' }}
+
+      - name: 완성된 APK의 서명·버전 확인
+        id: verify
+        if: steps.key.outputs.present == 'true'
+        run: |
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          expected=$(sed -n 's/^tubesave\.signerSha256=//p' gradle.properties)
+          certs=$("$tools/apksigner" verify --print-certs "$APK")
+          actual=$(printf '%s\n' "$certs" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          signers=$(printf '%s\n' "$certs" | grep -c 'certificate SHA-256 digest')
+          if [ "$signers" != "1" ] || [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+            echo "::error::APK 서명이 고정된 키와 달라요 (서명자 $signers개, $actual). 이대로 설치하면 기존 앱을 지워야 해요."
+            exit 1
+          fi
+          badging=$("$tools/aapt2" dump badging "$APK" | head -1)
+          package=$(printf '%s' "$badging" | sed -n "s/.*name='\([^']*\)'.*/\1/p")
+          code=$(printf '%s' "$badging" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")
+          name=$(printf '%s' "$badging" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          if [ "$package" != "com.psave.tubesave" ]; then
+            echo "::error::앱 ID가 달라요: $package"
+            exit 1
+          fi
+          {
+            echo "version_code=$code"
+            echo "version_name=$name"
+            echo "sha256=$(sha256sum "$APK" | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
+          echo "### 업데이트 설치 가능한 APK ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "버전 $name (versionCode $code) · 서명 \`$actual\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          name: tubesave-apk
+          path: ${{ env.APK }}
+          retention-days: 14
+          compression-level: 0
+
+  publish:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION_CODE: ${{ needs.build.outputs.version_code }}
+      VERSION_NAME: ${{ needs.build.outputs.version_name }}
+      APK_SHA256: ${{ needs.build.outputs.sha256 }}
+      UPDATE_MESSAGE: ${{ inputs.message }}
+    steps:
+      - name: 고정된 키로 서명된 빌드만 게시
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ] || [ "${{ needs.build.outputs.signed }}" != "true" ]; then
+            echo "::error::게시는 main 브랜치에서, 고정된 키로 서명된 빌드만 할 수 있어요."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tubesave-apk
+          path: dist
+
+      - name: 버전이 올라갔는지 확인
+        run: |
+          test "$(sha256sum dist/app-debug.apk | cut -d' ' -f1)" = "$APK_SHA256"
+          published=$(python3 -c "import json; print(json.load(open('tubesave_config.json')).get('latest_version_code', 0))")
+          if [ "$VERSION_CODE" -le "$published" ]; then
+            echo "::error::versionCode($VERSION_CODE)가 게시된 버전($published)보다 커야 업데이트로 설치돼요. app/build.gradle.kts 의 versionCode 를 올려 주세요."
+            exit 1
+          fi
+          if ! printf '%s' "$VERSION_NAME" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*$'; then
+            echo "::error::versionName($VERSION_NAME)에는 영문·숫자·점·밑줄·하이픈만 쓸 수 있어요."
+            exit 1
+          fi
+
+      - name: Release 게시
+        run: |
+          tag="v$VERSION_NAME"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag 가 이미 있어요. 같은 파일인지 확인해요."
+          else
+            gh release create "$tag" dist/app-debug.apk --target "$GITHUB_SHA" --title "$tag" \
+              --notes "$UPDATE_MESSAGE"$'\n\n'"기존 앱을 지우지 말고 업데이트로 설치해 주세요."$'\n'"versionCode $VERSION_CODE · SHA-256 $APK_SHA256"
+          fi
+          mkdir check
+          gh release download "$tag" --pattern app-debug.apk --dir check
+          if [ "$(sha256sum check/app-debug.apk | cut -d' ' -f1)" != "$APK_SHA256" ]; then
+            echo "::error::Release $tag 에 다른 APK가 올라가 있어요. versionName 을 올려 새 버전으로 게시해 주세요."
+            exit 1
+          fi
+
+      - name: 폰에 업데이트 안내 (tubesave_config.json 갱신)
+        run: |
+          git config user.name "tubesave-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python3 - <<'EOF'
+          import json, os
+          path = 'tubesave_config.json'
+          with open(path, encoding='utf-8') as f:
+              config = json.load(f)
+          config.update({
+              'latest_version_code': int(os.environ['VERSION_CODE']),
+              'apk_url': 'https://github.com/%s/releases/download/v%s/app-debug.apk'
+                         % (os.environ['GITHUB_REPOSITORY'], os.environ['VERSION_NAME']),
+              'update_message': os.environ['UPDATE_MESSAGE'].strip()[:500] or '더 안정적으로 개선했어요.',
+              'apk_sha256': os.environ['APK_SHA256'],
+              'apk_size_bytes': os.path.getsize('dist/app-debug.apk'),
+              'application_id': 'com.psave.tubesave',
+          })
+          with open(path, 'w', encoding='utf-8') as f:
+              json.dump(config, f, ensure_ascii=False, indent=2)
+          EOF
+            if git diff --quiet -- tubesave_config.json; then
+              echo "이미 게시된 내용과 같아요."
+              exit 0
+            fi
+            git add tubesave_config.json
+            git commit -m "Publish v$VERSION_NAME update metadata"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::tubesave_config.json 을 올리지 못했어요. 다시 실행해 주세요."
+          exit 1

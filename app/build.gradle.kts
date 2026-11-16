@@ -1,7 +1,27 @@
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// ── 업데이트 서명 고정 ────────────────────────────────────────────────
+// Android는 설치된 앱과 "같은 키"로 서명된 APK만 업데이트로 받아 준다. 키가 다르면
+// 기존 앱을 지워야만 설치된다. 그래서 어디서 빌드하든 폰에 깔린 앱과 같은 키만 쓰게 한다.
+//  - 키 파일 지정: 환경변수 TUBESAVE_KEYSTORE_FILE 또는 keystore.properties 의 KEYSTORE_FILE
+//  - 지정이 없으면 이 PC의 기본 디버그 키(~/.android/debug.keystore)
+//  - 어느 쪽이든 gradle.properties 의 tubesave.signerSha256 과 다르면 빌드를 멈춘다.
+val signingProps = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.isFile) file.inputStream().use { load(it) }
+}
+fun signingValue(name: String): String? =
+    (System.getenv("TUBESAVE_$name") ?: signingProps.getProperty(name))?.takeIf { it.isNotBlank() }
+val updateKeystore = signingValue("KEYSTORE_FILE")
+val pinnedSigner = (findProperty("tubesave.signerSha256") as String).trim().lowercase()
+val allowUnpinnedSigner = findProperty("tubesave.allowUnpinnedSigner") == "true"
 
 android {
     namespace = "com.psave.tubesave"
@@ -21,9 +41,22 @@ android {
         }
     }
 
+    signingConfigs {
+        getByName("debug") {
+            if (updateKeystore != null) {
+                storeFile = rootProject.file(updateKeystore)
+                storePassword = signingValue("KEYSTORE_PASSWORD") ?: "android"
+                keyAlias = signingValue("KEY_ALIAS") ?: "androiddebugkey"
+                keyPassword = signingValue("KEY_PASSWORD") ?: "android"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            // release 빌드도 같은 키로 서명해야 기존 앱 위에 업데이트로 설치된다.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -40,6 +73,34 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+// 서명 키가 고정된 키와 다르면 APK를 만들기 전에 멈춘다 (지워야만 설치되는 APK 방지).
+android.applicationVariants.all {
+    val config = signingConfig ?: return@all
+    val variant = name.replaceFirstChar { it.uppercase() }
+    val storeFile = config.storeFile
+    val storePassword = config.storePassword.orEmpty()
+    val keyAlias = config.keyAlias.orEmpty()
+    val check = tasks.register("verifyUpdateSigner$variant") {
+        group = "verification"
+        description = "서명 키가 폰에 설치된 앱의 키와 같은지 확인"
+        dependsOn("validateSigning$variant")
+        doLast {
+            val certificate = storeFile?.takeIf { it.isFile }
+                ?.let { KeyStore.getInstance(it, storePassword.toCharArray()).getCertificate(keyAlias) }
+                ?: throw GradleException("서명 키를 읽을 수 없어요: $storeFile (별칭 $keyAlias)")
+            val actual = MessageDigest.getInstance("SHA-256").digest(certificate.encoded)
+                .joinToString("") { "%02x".format(it) }
+            if (actual == pinnedSigner) return@doLast
+            val problem = "서명 키가 달라요. 이 APK는 기존 앱을 지워야만 설치돼요 (업데이트 불가).\n" +
+                "  사용한 키: $actual ($storeFile)\n  고정된 키: $pinnedSigner\n" +
+                "  해결: README의 '업데이트 서명 고정'을 참고해 원래 키 파일을 지정하세요."
+            if (!allowUnpinnedSigner) throw GradleException(problem)
+            logger.warn("경고(테스트 전용 빌드): $problem")
+        }
+    }
+    tasks.named("package$variant") { dependsOn(check) }
 }
 
 dependencies {

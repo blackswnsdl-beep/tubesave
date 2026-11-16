@@ -12,6 +12,7 @@ build/
 *.aab
 *.keystore
 *.jks
+/keystore.properties
 
 # 빌드 산출물/캐시
 /app/build/

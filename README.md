@@ -97,6 +97,40 @@ APK는 `app/build/outputs/apk/debug/app-debug.apk`. 단위 테스트 24개와 �
 3. 앱 최초 실행 시 알림/오디오 권한 [허용] 눌러주기
 4. 유튜브에서 노래 → 공유 → **노래저장** 탭 → 끝
 
+## 업데이트 서명 고정 (앱을 지우지 않고 업데이트)
+Android는 **설치된 앱과 같은 키로 서명된 APK만** 업데이트로 받아 줍니다. 키가 다르면 기존 앱을
+지워야만 설치됩니다. 예전에는 빌드한 PC마다 달라지는 디버그 키로 서명해서 이 문제가 생겼습니다.
+이제는 어디서 빌드하든 같은 키만 쓰고, 다른 키면 빌드가 멈춥니다.
+
+- 고정된 키: v1.4 Release 를 서명한 PC의 디버그 키 (`~/.android/debug.keystore`).
+  인증서 SHA-256 은 `gradle.properties` 의 `tubesave.signerSha256` (바꾸지 말 것).
+- 그 PC의 Android Studio 빌드는 지금처럼 그대로 됩니다.
+- 다른 PC·서버에서 빌드하려면 키 파일을 복사해 두고 환경변수 `TUBESAVE_KEYSTORE_FILE`
+  (또는 `keystore.properties` 의 `KEYSTORE_FILE=경로`)로 지정합니다.
+- 키가 다르면 `./gradlew assembleDebug` 가 "서명 키가 달라요"로 멈춥니다. 에뮬레이터 테스트처럼
+  업데이트 설치가 필요 없을 때만 `-Ptubesave.allowUnpinnedSigner=true` 로 넘어갑니다.
+- **키 파일을 꼭 백업하세요.** 잃어버리면 모든 폰에서 앱을 한 번 지우고 다시 깔아야 합니다.
+- 폰에 v1.4 이전에 다른 키로 설치한 앱이 남아 있다면 그 폰은 마지막으로 한 번만 지우고 설치해야 합니다
+  (Android 규칙이라 우회할 수 없음). 그 뒤로는 계속 업데이트로 설치됩니다.
+
+### GitHub에서 빌드·게시 (폰만으로 배포)
+`.github/workflows/android.yml` 이 같은 키로 서명하고, 완성된 APK의 서명을 다시 검사합니다.
+
+1회 준비 — 키를 저장소 시크릿에 등록 (v1.4를 빌드한 PC의 PowerShell):
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.android\debug.keystore")) | Set-Clipboard
+```
+GitHub 저장소 → Settings → Secrets and variables → Actions → New repository secret →
+이름 `TUBESAVE_KEYSTORE_BASE64`, 값에 붙여넣기. (비밀번호·별칭이 디버그 키 기본값과 다를 때만
+`TUBESAVE_KEYSTORE_PASSWORD`, `TUBESAVE_KEY_ALIAS`, `TUBESAVE_KEY_PASSWORD` 도 등록)
+
+새 버전 내기:
+1. `app/build.gradle.kts` 의 `versionCode`(반드시 증가)와 `versionName` 을 올려 main 에 반영
+2. GitHub → Actions → "Android 앱 빌드·배포" → Run workflow → **publish 체크**
+3. 워크플로가 Release 에 APK를 올리고 `tubesave_config.json` 을 갱신 → 폰 앱이 새 버전을 안내
+
+publish 를 체크하지 않으면 빌드·검사만 하고, 업데이트 설치 가능한 APK를 실행 결과의 Artifacts 에 올립니다.
+
 ## 유지보수 참고
 - 유튜브가 내부 구조를 바꾸면 다운로드가 실패할 수 있음.
   앱이 실행 시 yt-dlp 코어를 자동 업데이트하도록 되어 있어 대부분 자동 해결되지만,
